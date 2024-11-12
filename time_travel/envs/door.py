@@ -47,10 +47,13 @@ class DoorEnv(gym.Env):
     def __init__(self):
         super().__init__()
         self.action_space = spaces.Discrete(len(Action))
-        self.observation_space = spaces.Box(low=0, high=2, shape=(3,), dtype=int)
-        self.reward_door = random.randint(0, 1)
+        self.observation_space = spaces.MultiDiscrete([len(DoorState), len(DoorState), len(AgentType)], dtype=int)
 
     def reset(self, is_original_timeline=True):
+        if is_original_timeline:
+            # only re-generate reward door if we are resetting in the original timeline
+            # if we are resetting 
+            self.reward_door = random.randint(0, 1)
         self.t = 0
         self.doors = [
             Door(reward=R * (1 - self.reward_door), state=DoorState.CLOSED),
