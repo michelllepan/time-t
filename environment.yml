@@ -1,0 +1,9 @@
+name: tt
+channels:
+    - conda-forge
+    - defaults
+dependencies:
+    - python=3.12
+    - pip=24.2
+    - stable-baselines3=2.3.2
+    - gymnasium=0.29.1
