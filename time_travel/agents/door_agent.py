@@ -6,12 +6,19 @@ class DoorAgent:
 
     def __init__(self, env: DoorEnv, lr: float = 1e-1):
         self.env = env
-        self.q_values = np.zeros((np.prod(self.env.observation_space.nvec) + 1, self.env.action_space.n))
+        self.q_values = np.zeros((np.prod(self.env.observation_space.nvec) + 2, self.env.action_space.n))
         self.lr = lr
+
+        self.truncated_obs_idx = self.q_values.shape[0] - 2
+        self.do_nothing_obs_idx = self.q_values.shape[0] - 1
 
     def _obs_to_idx(self, obs: Observation):
         if obs is None:
-            return self.q_values.shape[0] - 1
+            return self.truncated_obs_idx
+        
+        if (self.env.t == 0 and obs.agent_type == AgentType.NORMAL or
+            self.env.t == 1 and obs.agent_type == AgentType.TIME_TRAVELING):
+            return self.do_nothing_obs_idx
         
         return (obs.door0.value * (len(DoorState) * len(AgentType)) +
                 obs.door1.value * (len(AgentType)) +

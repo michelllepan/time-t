@@ -118,17 +118,13 @@ class DoorEnv(gym.Env):
         if agent_type == AgentType.NORMAL:
             match self.t:
                 case 0:
-                    # print("normal agent t0")
                     valid_actions = {Action.DO_NOTHING}
                 case 1:
-                    # print("normal agent t1")
-                    valid_actions = {Action.OPEN_DOOR_0, Action.OPEN_DOOR_1, Action.DO_NOTHING}
                     if self.doors[0].state == DoorState.LOCKED:
-                        valid_actions -= {Action. OPEN_DOOR_0}
-                    if self.doors[1].state == DoorState.LOCKED:
-                        valid_actions == {Action.OPEN_DOOR_1}
+                        valid_actions = {Action.OPEN_DOOR_1}
+                    elif self.doors[1].state == DoorState.LOCKED:
+                        valid_actions = {Action.OPEN_DOOR_0}
                 case 2:
-                    # print("normal agent t2")
                     valid_actions = {Action.TIME_TRAVEL, Action.DO_NOTHING}
         elif agent_type == AgentType.TIME_TRAVELING:
             match self.t:
