@@ -4,7 +4,7 @@ from time_travel.envs.door import *
 
 class DoorAgent:
 
-    def __init__(self, env: DoorEnv, lr: float = 1e-1):
+    def __init__(self, env: DoorEnv, lr: float = 1e-2):
         self.env = env
         self.q_values = np.zeros((np.prod(self.env.observation_space.nvec) + 2, self.env.action_space.n))
         self.lr = lr
