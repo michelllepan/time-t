@@ -6,8 +6,8 @@ import random
 import gymnasium as gym
 from gymnasium import spaces
 
-R = 100
-BAD_ACTION_R = -1e6
+R = 199
+BAD_ACTION_R = int(-200)
 
 class Action(Enum):
     OPEN_DOOR_0 = 0
@@ -65,7 +65,7 @@ class DoorEnv(gym.Env):
     def step(self, joint_action: tuple[Action, Action]):
         normal_action, time_travel_action = joint_action
 
-        obs = None
+        obs = (None, None)
         reward = 0
         terminated = False
         truncated = False
@@ -73,8 +73,9 @@ class DoorEnv(gym.Env):
 
         if (not self._check_valid_action(normal_action, AgentType.NORMAL) or
             not self._check_valid_action(time_travel_action, AgentType.TIME_TRAVELING)):
+            # print("Invalid action")
             truncated = True
-            reward = -1e6
+            reward = BAD_ACTION_R
             return obs, reward, terminated, truncated, info
         
         self.t += 1
@@ -94,6 +95,11 @@ class DoorEnv(gym.Env):
                 terminated = not self.is_original_timeline
             case Action.TIME_TRAVEL:
                 self.reset(is_original_timeline=False)
+            case Action.DO_NOTHING:
+                if self.t == 3 and self.is_original_timeline:
+                    terminated = True
+                if self.t == 2 and not self.is_original_timeline:
+                    terminated = True
 
         return self._get_obs(), reward, terminated, truncated, info
 
@@ -112,14 +118,17 @@ class DoorEnv(gym.Env):
         if agent_type == AgentType.NORMAL:
             match self.t:
                 case 0:
+                    # print("normal agent t0")
                     valid_actions = {Action.DO_NOTHING}
                 case 1:
+                    # print("normal agent t1")
                     valid_actions = {Action.OPEN_DOOR_0, Action.OPEN_DOOR_1, Action.DO_NOTHING}
                     if self.doors[0].state == DoorState.LOCKED:
                         valid_actions -= {Action. OPEN_DOOR_0}
                     if self.doors[1].state == DoorState.LOCKED:
                         valid_actions == {Action.OPEN_DOOR_1}
                 case 2:
+                    # print("normal agent t2")
                     valid_actions = {Action.TIME_TRAVEL, Action.DO_NOTHING}
         elif agent_type == AgentType.TIME_TRAVELING:
             match self.t:

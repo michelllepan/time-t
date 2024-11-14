@@ -4,23 +4,31 @@ from time_travel.envs.door import *
 
 class DoorAgent:
 
-    def __init__(self, env: DoorEnv, lr: float = 1e-2):
+    def __init__(self, env: DoorEnv, lr: float = 1e-1):
         self.env = env
-        self.q_values = np.zeros((self.env.observation_space.n, self.env.action_space.n))
+        self.q_values = np.zeros((np.prod(self.env.observation_space.nvec) + 1, self.env.action_space.n))
+        self.lr = lr
 
     def _obs_to_idx(self, obs: Observation):
-        return (obs.door0.value * (len(DoorState) ** 2) +
-                obs.door1.value * (len(DoorState)) +
+        if obs is None:
+            return self.q_values.shape[0] - 1
+        
+        return (obs.door0.value * (len(DoorState) * len(AgentType)) +
+                obs.door1.value * (len(AgentType)) +
                 obs.agent_type.value)
 
-    def act(self, obs: Observation, deterministic: bool = False):
+    def act(self, obs: Observation, epsilon: float = 0, deterministic: bool = True):
         obs_idx = self._obs_to_idx(obs)
         obs_qs = self.q_values[obs_idx]
+
         if deterministic:
-            return np.argmax(obs_qs)
+            action_idx = np.argmax(obs_qs)
+        elif np.random.rand() > epsilon:
+            action_idx = np.random.choice(np.arange(self.env.action_space.n), p=(np.exp(obs_qs) / np.sum(np.exp(obs_qs))))
         else:
-            # TODO
-            return np.argmax(obs_qs)
+            action_idx = np.random.choice(np.arange(self.env.action_space.n))
+
+        return Action(value=action_idx)
     
     def update(self, obs: Observation, action: Action, next_obs: Observation, reward: float):
         obs_idx = self._obs_to_idx(obs)

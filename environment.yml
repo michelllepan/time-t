@@ -7,3 +7,4 @@ dependencies:
     - pip=24.2
     - stable-baselines3=2.3.2
     - gymnasium=0.29.1
+    - tqdm=4.67.0
