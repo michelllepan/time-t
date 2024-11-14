@@ -95,6 +95,10 @@ class DoorEnv(gym.Env):
                 self.doors[door_to_open].state = DoorState.OPEN_GOOD if reward > 0 else DoorState.OPEN_BAD
                 terminated = not self.is_original_timeline
             case Action.TIME_TRAVEL:
+                reward = 0
+                if (self.doors[0].state == DoorState.OPEN_GOOD or
+                    self.doors[1].state == DoorState.OPEN_GOOD):
+                    reward = -R
                 self.reset(is_original_timeline=False)
             case Action.DO_NOTHING:
                 if self.t == 3 and self.is_original_timeline:
