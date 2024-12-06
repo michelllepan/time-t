@@ -12,6 +12,7 @@ VISIBILITY = 2
 GOAL_R = 199
 BAD_ACTION_R = -200
 TRAP_R = -200
+AGENTS_CLOSE_R = -100
 TIME_R = -1
 
 class Action(Enum):
@@ -19,9 +20,12 @@ class Action(Enum):
     RIGHT = (1, 0)
     UP = (0, 1)
     DOWN = (0, -1)
-    TIME_TRAVEL = 4
-    DO_NOTHING = 5
-    # TODO: add actions for wall moving
+    LEFT_WALL = ((-1, 0), 'wall')
+    RIGHT_WALL = ((1, 0), 'wall')
+    UP_WALL = ((0, 1), 'wall')
+    DOWN_WALL = ((0, -1), 'wall')
+    TIME_TRAVEL = 8
+    DO_NOTHING = 9
     
 class AgentType(Enum):
     NORMAL = 0
@@ -37,7 +41,7 @@ class CellState(Enum):
 class Observation:
     position: tuple[int, int]
     cells: list[CellState]
-    agent_type:AgentType
+    agent_type: AgentType
 
 class MazeEnv(gym.Env):
     """A class for the maze environment.
@@ -46,7 +50,7 @@ class MazeEnv(gym.Env):
     def __init__(self):
         super().__init__()
         self.action_space = spaces.Discrete(len(Action))
-        self.observation_space = spaces.MultiDiscrete([GRID_SIZE, GRID_SIZE] + [len(CellState) for _ in range(8)])
+        self.observation_space = spaces.MultiDiscrete([GRID_SIZE, GRID_SIZE] + [len(CellState) for _ in range(5)])
 
     def reset(self, is_original_timeline=True):
         self.t = 0
@@ -73,7 +77,7 @@ class MazeEnv(gym.Env):
         
         self.is_original_timeline = is_original_timeline
         self.normal_agent_pos = (0, 0)
-        # TODO: time travel pos?
+        self.time_travel_agent_pos = (GRID_SIZE-1, GRID_SIZE-1)
 
         return self._get_obs()
         
@@ -88,13 +92,17 @@ class MazeEnv(gym.Env):
 
         if (not self._check_valid_action(normal_action, AgentType.NORMAL) or
             not self._check_valid_action(time_travel_action, AgentType.TIME_TRAVELING)):
-            # print("Invalid action")
+            print("Invalid action")
+            print(normal_action, self._check_valid_action(normal_action, AgentType.NORMAL))
+            print(time_travel_action, self._check_valid_action(time_travel_action, AgentType.TIME_TRAVELING))
             truncated = True
             reward = BAD_ACTION_R
             return obs, reward, terminated, truncated, info
 
         self.t += 1
+        reward += TIME_R
 
+        # normal agent move
         if normal_action in {Action.LEFT, Action.RIGHT, Action.UP, Action.DOWN}:
             x, y = self.normal_agent_pos
             dx, dy = normal_action.value
@@ -102,45 +110,72 @@ class MazeEnv(gym.Env):
             if self.grid[proposed_new_position] != CellState.WALL:
                 self.normal_agent_pos = proposed_new_position
 
+        if self.normal_agent_pos == (GRID_SIZE-1, GRID_SIZE-1):
+            if normal_action == Action.TIME_TRAVEL:
+                reward += -1 * TIME_R * self.t  # undo time rewards
+                reward -= GOAL_R  # undo goal reward
+                self.reset(is_original_timeline=False)
+                return self._get_obs(), reward, terminated, truncated, info
+            elif not self.is_original_timeline:
+                terminated = True
+                reward += GOAL_R
+                return self._get_obs(), reward, terminated, truncated, info
+
+        if not self.is_original_timeline:
+            # time travel agent move
+            if time_travel_action in {Action.LEFT, Action.RIGHT, Action.UP, Action.DOWN}:
+                x, y = self.time_travel_agent_pos
+                dx, dy = time_travel_action.value
+                proposed_new_position = (x + dx, y + dy)
+                if self.grid[proposed_new_position] != CellState.WALL:
+                    self.time_travel_agent_pos = proposed_new_position
+            
+            # check closeness
+            if (abs(self.normal_agent_pos[0] - self.time_travel_agent_pos[0]) +
+                abs(self.normal_agent_pos[1] - self.time_travel_agent_pos[1])) <= 1:
+                terminated = True
+                reward += AGENTS_CLOSE_R
+                return obs, reward, terminated, truncated, info
+
+            # time travel agent place wall
+            if time_travel_action in {Action.LEFT_WALL, Action.RIGHT_WALL, Action.UP_WALL, Action.DOWN_WALL}:
+                x, y = self.time_travel_agent_pos
+                dx, dy = time_travel_action.value[0]
+                proposed_wall_pos = (x + dx, y + dy)
+                if self.grid[proposed_wall_pos] == CellState.EMPTY:
+                    self.grid[proposed_wall_pos] = CellState.WALL
+        
         match self.grid[self.normal_agent_pos]:
             case CellState.GOAL:
-                reward = GOAL_R
-                terminated = True
+                reward += GOAL_R
             case CellState.TRAP:
-                reward = TRAP_R
+                reward += TRAP_R
                 terminated = True
-
-        reward += TIME_R
         
         return self._get_obs(), reward, terminated, truncated, info
 
     def _get_obs(self):
-        surrounding_cells = []
-        x, y = self.normal_agent_pos
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                if dx == 0 and dy == 0:
-                    continue
-                surrounding_cells.append(self.grid[(x + dx, y + dy)])
-        
-        return Observation(self.normal_agent_pos, surrounding_cells, AgentType.NORMAL), None
-        # TODO: time travel obs
+        obs = []
+        for pos, agent_type in zip([self.normal_agent_pos, self.time_travel_agent_pos],
+                                   [AgentType.NORMAL, AgentType.TIME_TRAVELING]):
+            x, y = pos
+            cells = [self.grid[(x, y)]]
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                cells.append(self.grid[(x + dx, y + dy)])
+            obs.append(Observation(pos, cells, agent_type))
+        return tuple(obs)
 
     def _check_valid_action(self, action: Action, agent_type: AgentType):
         if agent_type == AgentType.NORMAL:
-            agent_pos = self.normal_agent_pos
-        # else:
-        #     agent_pos = self.time_travel_agent_pos
-            
-        # if action in {Action.LEFT, Action.RIGHT, Action.UP, Action.DOWN}:
-        #     x, y = agent_pos
-        #     dx, dy = action.value
-        #     new_x, new_y = x + dx, y + dy
-
-        #     if self.grid[(new_x, new_y)] == CellState.WALL:
-        #         return False
-            
-        return True
+            valid_actions = {Action.DO_NOTHING}
+            if self.normal_agent_pos == (GRID_SIZE-1, GRID_SIZE-1):
+                if self.is_original_timeline:
+                    valid_actions |= {Action.TIME_TRAVEL}
+            else:
+                valid_actions |= {Action.LEFT, Action.RIGHT, Action.UP, Action.DOWN}
+            return action in valid_actions
+        elif agent_type == AgentType.TIME_TRAVELING:
+            return action != Action.TIME_TRAVEL
     
     def render(self):
         print("-" * 30)
@@ -161,5 +196,7 @@ class MazeEnv(gym.Env):
                         display = "T"
                 if self.normal_agent_pos == (x, y):
                     display = "n"
+                elif self.time_travel_agent_pos == (x, y) and not self.is_original_timeline:
+                    display = "t"
                 print(display, end=" ")
             print()
