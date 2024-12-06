@@ -65,6 +65,8 @@ def main():
             print(step)
     # print(total_rewards)
 
+    plt.xlabel("Episode")
+    plt.ylabel("Evaluation reward")
     plt.plot(range(0, max_episodes, 100), eval_rewards)
     plt.savefig('eval_rew.png')
     
