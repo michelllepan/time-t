@@ -47,6 +47,9 @@ def main():
             
             total_reward += reward
             rollout.append((prev_obs, primary_agent_action, reward, curr_obs))
+
+            # if not env_running:
+            #     print(f"success: {reward > 0}, time travel: {not env.is_original_timeline}")
             # print(f"t={info['t']} ({env_running=}): {rollout[-1]}")
         
         for s, a, r, sp in rollout:
@@ -79,6 +82,8 @@ def eval(env, agent):
         obs = env.reset()
         env_running = True
 
+        episode_reward = 0
+
         while env_running:
 
             if env.is_original_timeline:
@@ -90,9 +95,21 @@ def eval(env, agent):
                 time_travel_action = agent.act(obs[1], deterministic=True)
                 primary_agent_action = time_travel_action
 
+            if env.t == 0 and not env.is_original_timeline:
+                print(f"lock action: {time_travel_action}")
+            if env.t == 1:
+                print(f"reward door: {env.reward_door}")
+                print(f"normal agent action: {normal_action}")
+
             obs, reward, terminated, truncated, info = env.step((normal_action, time_travel_action))
             env_running = not (terminated or truncated)
             total_reward += reward
+            episode_reward += reward
+
+            
+            if not env_running:
+                print(f"success: {episode_reward > 0}, time travel: {not env.is_original_timeline}")
+                print()
 
     return total_reward / num_eval_episodes
 
