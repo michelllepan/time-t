@@ -39,9 +39,15 @@ class CellState(Enum):
     WALL = 2
     EMPTY = 3
 
+class ObservedTrapPosition(Enum):
+    NOT_OBSERVED = 0
+    LOWER_PATH = 1
+    UPPER_PATH = 2
+
 @dataclass
 class Observation:
     position: tuple[int, int]
+    observed_trap_position: ObservedTrapPosition
     cells: list[CellState]
     agent_type: AgentType
 
@@ -52,7 +58,7 @@ class MazeEnv(gym.Env):
     def __init__(self):
         super().__init__()
         self.action_space = spaces.Discrete(len(Action))
-        self.observation_space = spaces.MultiDiscrete([GRID_SIZE, GRID_SIZE] + [len(CellState) for _ in range(5)] + [len(AgentType)])
+        self.observation_space = spaces.MultiDiscrete([GRID_SIZE, GRID_SIZE] + [len(CellState) for _ in range(5)] + [len(ObservedTrapPosition)] + [len(AgentType)])
 
     def reset(self, is_original_timeline=True):
         self.t = 0
@@ -71,8 +77,8 @@ class MazeEnv(gym.Env):
 
             self.grid[(GRID_SIZE-1, GRID_SIZE-1)] = CellState.GOAL
 
-            trap_is_below = random.randint(0, 1) == 0
-            if trap_is_below:
+            self.trap_is_below = random.randint(0, 1) == 0
+            if self.trap_is_below:
                 self.grid[(GRID_SIZE-2, GRID_SIZE-1)] = CellState.TRAP
             else:
                 self.grid[(GRID_SIZE-1, GRID_SIZE-2)] = CellState.TRAP
@@ -80,6 +86,8 @@ class MazeEnv(gym.Env):
         self.is_original_timeline = is_original_timeline
         self.normal_agent_pos = (0, 0)
         self.time_travel_agent_pos = (GRID_SIZE-1, GRID_SIZE-1)
+
+        self.has_seen_trap = {AgentType.NORMAL: False, AgentType.TIME_TRAVELING: False}
 
         return self._get_obs()
     
@@ -183,7 +191,13 @@ class MazeEnv(gym.Env):
             cells = [self.grid[(x, y)]]
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 cells.append(self.grid[(x + dx, y + dy)])
-            obs.append(Observation(pos, cells, agent_type))
+                if cells[-1] == CellState.TRAP:
+                    self.has_seen_trap[agent_type] = True
+            
+            trap_obs = ObservedTrapPosition.NOT_OBSERVED
+            if self.has_seen_trap[agent_type]:
+                trap_obs = ObservedTrapPosition.LOWER_PATH if self.trap_is_below else ObservedTrapPosition.UPPER_PATH
+            obs.append(Observation(pos, trap_obs, cells, agent_type))
         return tuple(obs)
 
     def _check_valid_action(self, action: Action, agent_type: AgentType):

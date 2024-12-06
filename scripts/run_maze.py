@@ -14,7 +14,8 @@ def main():
     eval_rewards = []
 
     max_epsilon = 0.8
-    max_episodes = 10000
+    max_episodes = 100000
+    eval_every = 1000
 
     for episode_idx in tqdm(range(max_episodes)):
         obs = env.reset()
@@ -61,7 +62,7 @@ def main():
         total_rewards.append(total_reward)
         rollouts.append(rollout)
 
-        if episode_idx % 100 == 0:
+        if episode_idx % eval_every == 0:
             eval_rewards.append(eval(env, agent))
             print(f"Eval at {episode_idx=}: {eval_rewards[-1]}")
 
@@ -73,7 +74,7 @@ def main():
 
     plt.xlabel("Episode")
     plt.ylabel("Evaluation reward")
-    plt.plot(range(0, max_episodes, 100), eval_rewards)
+    plt.plot(range(0, max_episodes, eval_every), eval_rewards)
     plt.savefig('eval_rew.png')
     
 

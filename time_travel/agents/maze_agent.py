@@ -15,8 +15,9 @@ class MazeAgent:
         if obs is None:
             return self.truncated_obs_idx
         
-        return obs.position[0] * (GRID_SIZE * len(CellState) ** 5 * len(AgentType)) + \
-               obs.position[1] * (len(CellState) ** 5 * len(AgentType)) + \
+        return obs.position[0] * (GRID_SIZE * len(CellState) ** 5 * len(ObservedTrapPosition) * len(AgentType)) + \
+               obs.position[1] * (len(CellState) ** 5 * len(ObservedTrapPosition) * len(AgentType)) + \
+               obs.observed_trap_position.value * (len(CellState) ** 5 * len(AgentType)) + \
                sum([obs.cells[i].value * (len(CellState) ** (4-i) * len(AgentType)) for i in range(5)]) + \
                obs.agent_type.value
     
