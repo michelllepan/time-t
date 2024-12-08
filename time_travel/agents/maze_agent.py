@@ -17,6 +17,9 @@ class MazeAgent:
         
         return obs.to_idx()
     
+    def softmax_stable(self, x):
+        return np.exp(x - np.max(x)) / np.sum(np.exp(x - np.max(x)))
+    
     def act(self, obs: Observation | ObservationWithTrapPos, epsilon: float = 0, deterministic: bool = True):
         obs_idx = self._obs_to_idx(obs)
         obs_qs = self.q_values[obs_idx]
@@ -24,7 +27,7 @@ class MazeAgent:
         if deterministic:
             action_idx = np.argmax(obs_qs)
         elif np.random.rand() > epsilon:
-            action_idx = np.random.choice(np.arange(self.env.action_space.n), p=(np.exp(obs_qs) / np.sum(np.exp(obs_qs))))
+            action_idx = np.random.choice(np.arange(self.env.action_space.n), p=self.softmax_stable(obs_qs))
         else:
             action_idx = np.random.choice(np.arange(self.env.action_space.n))
 

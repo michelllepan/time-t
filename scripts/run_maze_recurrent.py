@@ -2,6 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 
 from sb3_contrib.ppo_recurrent import RecurrentPPO
+from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from time_travel.envs.maze import Action, MazeEnv, Observation
 
@@ -12,8 +13,10 @@ class MazeWrapper(gym.Wrapper):
         self.rollout = []
         self.agent = None
         self.render_steps = render_steps
+
         
-    def set_agent(self, agent: RecurrentPPO):
+        
+    def set_agent(self, agent: RecurrentPPO | PPO):
         self.agent = agent
 
     def obs_to_array(self, obs: Observation):
@@ -60,7 +63,8 @@ eval_callback = EvalCallback(eval_wrapper, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=1000,
                              deterministic=True, render=True)
 
-rppo = RecurrentPPO("MlpLstmPolicy", maze_wrapper, verbose=1)
+rppo = RecurrentPPO("MlpLstmPolicy", maze_wrapper, verbose=1, ent_coef=0.05)
+# rppo = PPO("MlpPolicy", maze_wrapper, verbose=1, ent_coef=0.75)
 maze_wrapper.set_agent(rppo)
 eval_wrapper.set_agent(rppo)
 rppo.learn(int(1e5), callback=eval_callback)

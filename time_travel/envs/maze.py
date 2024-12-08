@@ -11,10 +11,10 @@ VISIBILITY = 2
 
 MAX_EPISODE_LEN = 100
 
-GOAL_R = 199
-BAD_ACTION_R = -200
+GOAL_R = 1e6 #199
+BAD_ACTION_R = -2
 TRAP_R = -200
-AGENTS_CLOSE_R = -100
+AGENTS_CLOSE_R = -350
 TIME_R = -1
 
 class Action(Enum):
@@ -140,9 +140,8 @@ class MazeEnv(gym.Env):
             # print("Invalid action")
             # print(normal_action, self._check_valid_action(normal_action, AgentType.NORMAL))
             # print(time_travel_action, self._check_valid_action(time_travel_action, AgentType.TIME_TRAVELING))
-            truncated = True
-            reward = BAD_ACTION_R
-            return obs, reward, terminated, truncated, info
+            # truncated = True
+            reward += BAD_ACTION_R
 
         self.t += 1
         reward += TIME_R
@@ -158,20 +157,28 @@ class MazeEnv(gym.Env):
             proposed_new_position = (x + dx, y + dy)
             if self.grid[proposed_new_position] != CellState.WALL:
                 self.normal_agent_pos = proposed_new_position
+        
+        # time travel agent place wall
+        if normal_action in {Action.LEFT_WALL, Action.RIGHT_WALL, Action.UP_WALL, Action.DOWN_WALL}:
+            x, y = self.normal_agent_pos
+            dx, dy = self.action_to_dx_dy(normal_action)
+            proposed_wall_pos = (x + dx, y + dy)
+            if self.grid[proposed_wall_pos] == CellState.EMPTY:
+                self.grid[proposed_wall_pos] = CellState.WALL
 
         if self.normal_agent_pos == (GRID_SIZE-1, GRID_SIZE-1):
-            if normal_action == Action.TIME_TRAVEL:
+            if not self.is_original_timeline:
+                terminated = True
+                reward += GOAL_R
+                return self._get_obs(), reward, terminated, truncated, info
+            elif normal_action == Action.TIME_TRAVEL:
                 reward += -1 * TIME_R * self.t  # undo time rewards
                 reward -= GOAL_R  # undo goal reward
                 self.reset(is_original_timeline=False)
                 return self._get_obs(), reward, terminated, truncated, info
-            elif normal_action == Action.DO_NOTHING:
+            else:
                 reward = 0
                 terminated = True
-                return self._get_obs(), reward, terminated, truncated, info
-            elif not self.is_original_timeline:
-                terminated = True
-                reward += GOAL_R
                 return self._get_obs(), reward, terminated, truncated, info
 
         if not self.is_original_timeline:
@@ -234,7 +241,7 @@ class MazeEnv(gym.Env):
                 if self.is_original_timeline:
                     valid_actions |= {Action.TIME_TRAVEL}
             else:
-                valid_actions |= {Action.LEFT, Action.RIGHT, Action.UP, Action.DOWN}
+                valid_actions |= {Action.LEFT, Action.RIGHT, Action.UP, Action.DOWN, Action.LEFT_WALL, Action.RIGHT_WALL, Action.UP_WALL, Action.DOWN_WALL}
             return action in valid_actions
         elif agent_type == AgentType.TIME_TRAVELING:
             return action != Action.TIME_TRAVEL
