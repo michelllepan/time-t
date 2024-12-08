@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def main():
-    env = MazeEnv()
+    env = MazeEnv(trap_position_observed=True)
     agent = MazeAgent(env)
 
     total_rewards = []

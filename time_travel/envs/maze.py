@@ -47,20 +47,44 @@ class ObservedTrapPosition(Enum):
 @dataclass
 class Observation:
     position: tuple[int, int]
-    observed_trap_position: ObservedTrapPosition
     cells: list[CellState]
     agent_type: AgentType
+
+    def to_idx(self):
+        return self.position[0] * (GRID_SIZE * len(CellState) ** 5 * len(AgentType)) + \
+               self.position[1] * (len(CellState) ** 5 * len(AgentType)) + \
+               sum([self.cells[i].value * (len(CellState) ** (4-i) * len(AgentType)) for i in range(5)]) + \
+               self.agent_type.value
+    
+    def to_array(self):
+        return [*self.position, *[c.value for c in self.cells], self.agent_type.value]
+
+@dataclass
+class ObservationWithTrapPos(Observation):
+    observed_trap_position: ObservedTrapPosition
+
+    def to_idx(self):
+        return self.observed_trap_position.value * (GRID_SIZE * GRID_SIZE * len(CellState) ** 5 * len(AgentType)) + \
+        super().to_idx()
+
 
 class MazeEnv(gym.Env):
     """A class for the maze environment.
     """
     
-    def __init__(self):
+    def __init__(self, trap_position_observed=True):
         super().__init__()
-        self.action_space = spaces.Discrete(len(Action))
-        self.observation_space = spaces.MultiDiscrete([GRID_SIZE, GRID_SIZE] + [len(CellState) for _ in range(5)] + [len(ObservedTrapPosition)] + [len(AgentType)])
 
-    def reset(self, is_original_timeline=True):
+        self.trap_position_observed = trap_position_observed
+
+        self.action_space = spaces.Discrete(len(Action))
+        
+        if self.trap_position_observed:
+            self.observation_space = spaces.MultiDiscrete([len(ObservedTrapPosition)] + [GRID_SIZE, GRID_SIZE] + [len(CellState) for _ in range(5)] + [len(AgentType)])
+        else:
+            self.observation_space = spaces.MultiDiscrete([GRID_SIZE, GRID_SIZE] + [len(CellState) for _ in range(5)] + [len(AgentType)])
+
+    def reset(self, is_original_timeline=True, seed=None, options=None):
         self.t = 0
 
         if is_original_timeline:
@@ -193,11 +217,14 @@ class MazeEnv(gym.Env):
                 cells.append(self.grid[(x + dx, y + dy)])
                 if cells[-1] == CellState.TRAP:
                     self.has_seen_trap[agent_type] = True
-            
-            trap_obs = ObservedTrapPosition.NOT_OBSERVED
-            if self.has_seen_trap[agent_type]:
-                trap_obs = ObservedTrapPosition.LOWER_PATH if self.trap_is_below else ObservedTrapPosition.UPPER_PATH
-            obs.append(Observation(pos, trap_obs, cells, agent_type))
+
+            if self.trap_position_observed:
+                trap_obs = ObservedTrapPosition.NOT_OBSERVED
+                if self.has_seen_trap[agent_type]:
+                    trap_obs = ObservedTrapPosition.LOWER_PATH if self.trap_is_below else ObservedTrapPosition.UPPER_PATH
+                obs.append(ObservationWithTrapPos(pos, cells, agent_type, trap_obs))
+            else:
+                obs.append(Observation(pos, cells, agent_type))
         return tuple(obs)
 
     def _check_valid_action(self, action: Action, agent_type: AgentType):
